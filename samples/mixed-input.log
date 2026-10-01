@@ -1,0 +1,10 @@
+192.0.2.50 - - [01/Oct/2025:10:00:00 +0000] "GET /shared?mode=test HTTP/1.1" 200 0
+
+2001:db8::8 - - [01/Oct/2025:10:02:00 +0000] "POST /shared?mode=test HTTP/1.1" 404 -
+not-an-ip - - [01/Oct/2025:10:03:00 +0000] "GET /bad-host HTTP/1.1" 200 2
+198.51.100.51 - - [01/Oct/2025:10:04:00 +0000] "get /lowercase HTTP/1.1" 200 2
+198.51.100.52 - - [01/Oct/2025:10:05:00 +0000] "GET /bad-status HTTP/1.1" 600 2
+198.51.100.53 - - [01/Oct/2025:10:06:00 +0000] "GET /combined HTTP/1.1" 200 10 "https://example.invalid/" "synthetic-agent"
+
+198.51.100.50 - - [01/Oct/2025:10:08:00 +0000] "BREW /tea HTTP/1.1" 503 5
+192.0.2.50 - - [01/Oct/2025:10:09:00 +0000] "GET /shared?mode=test HTTP/1.1" 201 42
