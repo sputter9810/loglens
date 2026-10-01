@@ -2,7 +2,7 @@
 
 LogLens is a Python command-line application for analysing local HTTP server access logs. It is intended to make large text logs easier to inspect through structured parsing, filtering and summaries.
 
-This repository contains the installable package foundation, shared access-log record contract, CLF line parser, and command-line argument interface. Log analysis operations are not implemented yet.
+This repository contains the installable package foundation, shared access-log record contract, CLF line parser, reusable request-summary analysis, and command-line argument interface. Filtering and rankings are not implemented yet.
 
 ## Record contract
 
@@ -38,6 +38,10 @@ client-ip ident authuser [DD/Mon/YYYY:HH:MM:SS +HHMM] "METHOD /origin-target HTT
 - `STATUS` must be a three-digit code from 100 through 599. `SIZE` must be a nonnegative decimal integer or `-`; `-` becomes `None`, while `0` remains zero.
 - Additional trailing fields, including Combined-format referer and user-agent fields, are rejected. Other log formats are not detected or supported.
 
+## Request summary analysis
+
+`summarize_requests(records)` accepts an iterable of parsed `AccessLogRecord` values and returns a `RequestSummary` with `total_requests`, exact `status_counts`, and `category_counts` for every category from `1xx` through `5xx`, including zero counts. It consumes the iterable once and performs no file access, printing, or malformed-input diagnostics; input handling is the caller's responsibility.
+
 ## Command-line interface
 
 Editable installation registers the `loglens` command. Its approved command forms are:
@@ -49,7 +53,7 @@ loglens top-paths FILE [--limit N]
 loglens top-ips FILE [--limit N]
 ```
 
-`--limit` defaults to 10, and method arguments are normalized to uppercase. The root and all subcommands provide argparse help. At this stage these commands define the interface only: each recognized operation reports that it is unavailable on standard error and exits with status 1. They do not read the supplied file or claim to produce analysis. Filter/business validation and summary, filtering, and ranking behavior are planned for later issues.
+`--limit` defaults to 10, and method arguments are normalized to uppercase. The root and all subcommands provide argparse help. At this stage these commands define the interface only: each recognized operation reports that it is unavailable on standard error and exits with status 1. They do not read the supplied file or claim to produce analysis. The reusable summary API is available to Python callers; CLI integration, filter/business validation, filtering, and ranking behavior are planned for later issues.
 
 ## Sample data
 
