@@ -11,6 +11,13 @@ from loglens.models import AccessLogRecord
 SAMPLES = Path(__file__).parents[1] / "samples"
 
 
+def command_args(command: str, path: Path) -> list[str]:
+    args = [command, str(path)]
+    if command == "filter":
+        args.extend(["--method", "GET"])
+    return args
+
+
 @pytest.mark.parametrize(
     "argv",
     [
@@ -114,19 +121,21 @@ def test_empty_file_returns_zero_summary_and_empty_filter_result(capsys) -> None
     assert capsys.readouterr().out == "No records matched.\n"
 
 
-def test_blank_only_file_has_no_diagnostic(tmp_path: Path, capsys) -> None:
+@pytest.mark.parametrize("command", ["summary", "filter", "top-paths", "top-ips"])
+def test_blank_only_file_has_no_diagnostic(command: str, tmp_path: Path, capsys) -> None:
     blank_only = tmp_path / "blank-only.log"
     blank_only.write_text("\n  \n\t\n", encoding="utf-8")
 
-    assert main(["summary", str(blank_only)]) == 0
+    assert main(command_args(command, blank_only)) == 0
     captured = capsys.readouterr()
 
-    assert "Total requests: 0" in captured.out
-    assert all(
-        f"{category}: 0" in captured.out
-        for category in ("1xx", "2xx", "3xx", "4xx", "5xx")
-    )
     assert captured.err == ""
+    if command == "summary":
+        assert "Total requests: 0" in captured.out
+    elif command == "filter":
+        assert captured.out == "No records matched.\n"
+    else:
+        assert captured.out == "No requests to rank.\n"
 
 
 def test_ranking_commands_report_sample_ties(capsys) -> None:
@@ -149,25 +158,32 @@ def test_ranking_commands_report_sample_ties(capsys) -> None:
     ]
 
 
-def test_mixed_summary_reports_aggregate_diagnostics(capsys) -> None:
-    assert main(["summary", str(SAMPLES / "mixed-input.log")]) == 0
+@pytest.mark.parametrize("command", ["summary", "filter", "top-paths", "top-ips"])
+def test_mixed_input_totals_are_consistent_across_commands(command: str, capsys) -> None:
+    assert main(command_args(command, SAMPLES / "mixed-input.log")) == 0
     captured = capsys.readouterr()
 
-    assert "Total requests: 4" in captured.out
-    assert "  2xx: 2" in captured.out
-    assert "  3xx: 0" in captured.out
+    if command == "summary":
+        assert "Total requests: 4" in captured.out
+        assert "  2xx: 2" in captured.out
+        assert "  3xx: 0" in captured.out
     assert captured.err == (
         "Input: 4 valid records; 4 malformed records skipped; 2 blank lines ignored.\n"
     )
 
 
-def test_all_invalid_file_fails_and_reports_rejected_count(capsys) -> None:
-    assert main(["summary", str(SAMPLES / "all-invalid.log")]) == 1
+@pytest.mark.parametrize("command", ["summary", "filter", "top-paths", "top-ips"])
+def test_all_invalid_input_fails_consistently_without_record_dumps(
+    command: str, capsys
+) -> None:
+    assert main(command_args(command, SAMPLES / "all-invalid.log")) == 1
     captured = capsys.readouterr()
 
     assert captured.out == ""
     assert "Input: 0 valid records; 5 malformed records skipped; 0 blank lines ignored." in captured.err
     assert "no valid access-log records" in captured.err
+    assert "not-an-ip" not in captured.err
+    assert len(captured.err.splitlines()) == 2
 
 
 def test_invalid_argument_shape_exits_with_argparse_status() -> None:

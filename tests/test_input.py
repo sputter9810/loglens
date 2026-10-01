@@ -122,3 +122,40 @@ def test_mid_read_failure_is_reported_as_incomplete(monkeypatch) -> None:
     with pytest.raises(LogInputError, match="failed before completion") as exception:
         next(records)
     assert exception.value.incomplete is True
+
+
+def test_crlf_and_unterminated_final_line_survive_malformed_neighbor(tmp_path: Path) -> None:
+    sample_lines = (SAMPLES / "valid-clf.log").read_bytes().splitlines()
+    malformed = (
+        b'192.0.2.9 - - [31/Feb/2025:12:00:00 +0000] '
+        b'"GET /invalid-date HTTP/1.1" 200 1'
+    )
+    path = tmp_path / "crlf-with-unterminated-final.log"
+    path.write_bytes(b"\r\n".join((sample_lines[0], malformed, sample_lines[2])))
+    stats = InputStats()
+
+    records = list(iter_log_records(path, stats))
+
+    assert [record.status for record in records] == [200, 404]
+    assert stats.valid_records == 2
+    assert stats.malformed_records == 1
+    assert stats.blank_lines == 0
+
+
+def test_unexpected_parser_programming_error_is_not_marked_malformed(
+    monkeypatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "record.log"
+    path.write_text((SAMPLES / "valid-clf.log").read_text(encoding="utf-8").splitlines()[0])
+    stats = InputStats()
+
+    def broken_parser(line: str):
+        raise RuntimeError("parser implementation defect")
+
+    monkeypatch.setattr("loglens.input.parse_access_log_line", broken_parser)
+
+    with pytest.raises(RuntimeError, match="parser implementation defect"):
+        list(iter_log_records(path, stats))
+
+    assert stats.malformed_records == 0
+    assert stats.valid_records == 0

@@ -38,6 +38,8 @@ client-ip ident authuser [DD/Mon/YYYY:HH:MM:SS +HHMM] "METHOD /origin-target HTT
 - `STATUS` must be a three-digit code from 100 through 599. `SIZE` must be a nonnegative decimal integer or `-`; `-` becomes `None`, while `0` remains zero.
 - Additional trailing fields, including Combined-format referer and user-agent fields, are rejected. Other log formats are not detected or supported.
 
+The parser recognizes only this field order and shape. It does not auto-detect or convert Combined, NCSA-style date, virtual-host-prefixed, or custom log formats. Near-matching timestamps, timezone names in place of numeric offsets, absolute-form request targets, and extra fields are rejected as malformed records.
+
 ## Request summary analysis
 
 `summarize_requests(records)` accepts an iterable of parsed `AccessLogRecord` values and returns a `RequestSummary` with `total_requests`, exact `status_counts`, and `category_counts` for every category from `1xx` through `5xx`, including zero counts. It consumes the iterable once and performs no file access, printing, or malformed-input diagnostics; input handling is the caller's responsibility.

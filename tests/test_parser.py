@@ -151,3 +151,16 @@ def test_malformed_lines_raise_parse_error_without_output(line: str, capsys) -> 
 def test_non_string_input_is_a_programming_error() -> None:
     with pytest.raises(TypeError, match="line must be a string"):
         parse_access_log_line(None)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '192.0.2.1 - - [01-Oct-2025:12:00:00 +0000] "GET / HTTP/1.1" 200 1',
+        '192.0.2.1 - - [01/Oct/2025:12:00:00 UTC] "GET / HTTP/1.1" 200 1',
+        'web-01 192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] "GET / HTTP/1.1" 200 1',
+    ],
+)
+def test_rejects_near_matching_non_clf_formats(line: str) -> None:
+    with pytest.raises(AccessLogParseError):
+        parse_access_log_line(line)
