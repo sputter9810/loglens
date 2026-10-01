@@ -114,6 +114,43 @@ Run the linter with:
 
 The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. CLI integration tests run complete commands against tracked sample files and cross-check summary totals, a combined filter, and both rankings against `samples/README.md`; they also smoke-test the installed console launcher locally. The suite does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
 
+## Scaling review
+
+Run the reproducible standard-library benchmark from the repository root with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_scaling.py --sizes 1000 5000 --repeats 3
+```
+
+The script writes temporary UTF-8 CLF files and removes them when it exits. The repeat-heavy dataset reuses one request target and IP; the high-cardinality dataset varies both for every record and alternates statuses 200/404. It measures summary, status-200 filtering, target ranking, and IP ranking. Each operation is timed with `perf_counter`; the table reports median wall time and the maximum Python allocation peak from `tracemalloc` across repetitions. File generation is outside the measured region. Python and platform details are printed by the script.
+
+These results are diagnostic, not an SLA. `tracemalloc` measures traced Python allocations, not process RSS or OS page cache. Summary and filter operations retain bounded aggregate/iterator state; ranking retains counters and sorting state proportional to distinct keys, as the ranking contract permits. No large dataset is committed.
+
+### Recorded run
+
+Run on Python 3.12.10 (CPython), Windows 11 10.0.26200, AMD64, AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD. Each row is the median of three runs; peak is the maximum traced Python allocation observed across those runs.
+
+| Dataset | Records | Operation | Median wall time (ms) | Peak traced memory (KiB) |
+| --- | ---: | --- | ---: | ---: |
+| Repeat-heavy | 1,000 | Summary | 60.3 | 28.6 |
+| Repeat-heavy | 1,000 | Status-200 filter | 57.5 | 28.6 |
+| Repeat-heavy | 1,000 | Top targets | 58.8 | 28.4 |
+| Repeat-heavy | 1,000 | Top IPs | 59.9 | 28.4 |
+| High-cardinality | 1,000 | Summary | 95.0 | 28.7 |
+| High-cardinality | 1,000 | Status-200 filter | 88.6 | 28.9 |
+| High-cardinality | 1,000 | Top targets | 92.1 | 217.5 |
+| High-cardinality | 1,000 | Top IPs | 93.9 | 209.6 |
+| Repeat-heavy | 5,000 | Summary | 293.0 | 28.3 |
+| Repeat-heavy | 5,000 | Status-200 filter | 286.1 | 28.3 |
+| Repeat-heavy | 5,000 | Top targets | 291.2 | 28.2 |
+| Repeat-heavy | 5,000 | Top IPs | 291.0 | 28.1 |
+| High-cardinality | 5,000 | Summary | 461.2 | 28.5 |
+| High-cardinality | 5,000 | Status-200 filter | 449.5 | 28.7 |
+| High-cardinality | 5,000 | Top targets | 472.0 | 1,070.8 |
+| High-cardinality | 5,000 | Top IPs | 461.1 | 1,007.6 |
+
+The input iterator, summary and filter remain close to constant traced memory as row count grows. Rankers stay similarly small when every record shares a key, but their counters and sorted distinct-key result grow with cardinality, as designed. Wall times include Python-level parsing and tracing overhead and are not suitable as uninstrumented throughput estimates.
+
 ## Licence
 
 Sam's licence decision is pending. No licence has been selected or granted yet.
