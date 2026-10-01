@@ -1,8 +1,14 @@
+from datetime import UTC, datetime
 from importlib.metadata import entry_points
+from pathlib import Path
 
 import pytest
 
 from loglens.cli import build_parser, main
+from loglens.input import LogInputError
+from loglens.models import AccessLogRecord
+
+SAMPLES = Path(__file__).parents[1] / "samples"
 
 
 @pytest.mark.parametrize(
@@ -54,21 +60,114 @@ def test_command_argument_shapes_and_defaults() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["summary", "access.log"],
-        ["filter", "access.log", "--status", "200"],
-        ["top-paths", "access.log"],
-        ["top-ips", "access.log"],
-    ],
-)
-def test_unimplemented_commands_report_unavailable(argv: list[str], capsys) -> None:
-    assert main(argv) == 1
+def test_summary_command_reports_sample_totals(capsys) -> None:
+    assert main(["summary", str(SAMPLES / "valid-clf.log")]) == 0
 
     captured = capsys.readouterr()
+    assert "Total requests: 8" in captured.out
+    assert "  404: 2" in captured.out
+    assert "  1xx: 1" in captured.out
+    assert "  5xx: 1" in captured.out
+    assert captured.err == ""
+
+
+def test_filter_combines_status_and_method_with_and(capsys) -> None:
+    assert main(
+        [
+            "filter",
+            str(SAMPLES / "mixed-input.log"),
+            "--status",
+            "404",
+            "--method",
+            "post",
+        ]
+    ) == 0
+
+    captured = capsys.readouterr()
+    assert 'POST "/shared?mode=test" HTTP/1.1 404 -' in captured.out
+    assert "/tea" not in captured.out
+    assert captured.err == (
+        "Input: 4 valid records; 4 malformed records skipped; 2 blank lines ignored.\n"
+    )
+
+
+def test_filter_preserves_order_and_reports_zero_matches(capsys) -> None:
+    assert main(["filter", str(SAMPLES / "valid-clf.log"), "--method", "get"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.index('GET "/alpha?x=1"') < captured.out.index('GET "/gamma"')
+    assert captured.out.index('GET "/gamma"') < captured.out.index('GET "/epsilon"')
+
+    assert main(
+        ["filter", str(SAMPLES / "valid-clf.log"), "--status", "599"]
+    ) == 0
+    assert capsys.readouterr().out == "No records matched.\n"
+
+
+def test_empty_file_returns_zero_summary_and_empty_filter_result(capsys) -> None:
+    empty = str(SAMPLES / "empty.log")
+    assert main(["summary", empty]) == 0
+    summary = capsys.readouterr()
+    assert "Total requests: 0" in summary.out
+    assert all(f"{category}: 0" in summary.out for category in ("1xx", "2xx", "3xx", "4xx", "5xx"))
+
+    assert main(["filter", empty, "--method", "GET"]) == 0
+    assert capsys.readouterr().out == "No records matched.\n"
+
+
+def test_blank_only_file_has_no_diagnostic(tmp_path: Path, capsys) -> None:
+    blank_only = tmp_path / "blank-only.log"
+    blank_only.write_text("\n  \n\t\n", encoding="utf-8")
+
+    assert main(["summary", str(blank_only)]) == 0
+    captured = capsys.readouterr()
+
+    assert "Total requests: 0" in captured.out
+    assert all(
+        f"{category}: 0" in captured.out
+        for category in ("1xx", "2xx", "3xx", "4xx", "5xx")
+    )
+    assert captured.err == ""
+
+
+def test_ranking_commands_report_sample_ties(capsys) -> None:
+    sample = str(SAMPLES / "valid-clf.log")
+    assert main(["top-paths", sample, "--limit", "3"]) == 0
+    paths = capsys.readouterr()
+    assert paths.out.splitlines() == [
+        '2\t"/alpha?x=1"',
+        '2\t"/beta"',
+        '1\t"/delta"',
+    ]
+
+    assert main(["top-ips", sample]) == 0
+    ips = capsys.readouterr()
+    assert ips.out.splitlines() == [
+        '2\t"192.0.2.10"',
+        '2\t"198.51.100.20"',
+        '2\t"2001:db8::1"',
+        '2\t"203.0.113.9"',
+    ]
+
+
+def test_mixed_summary_reports_aggregate_diagnostics(capsys) -> None:
+    assert main(["summary", str(SAMPLES / "mixed-input.log")]) == 0
+    captured = capsys.readouterr()
+
+    assert "Total requests: 4" in captured.out
+    assert "  2xx: 2" in captured.out
+    assert "  3xx: 0" in captured.out
+    assert captured.err == (
+        "Input: 4 valid records; 4 malformed records skipped; 2 blank lines ignored.\n"
+    )
+
+
+def test_all_invalid_file_fails_and_reports_rejected_count(capsys) -> None:
+    assert main(["summary", str(SAMPLES / "all-invalid.log")]) == 1
+    captured = capsys.readouterr()
+
     assert captured.out == ""
-    assert "not available yet" in captured.err
+    assert "Input: 0 valid records; 5 malformed records skipped; 0 blank lines ignored." in captured.err
+    assert "no valid access-log records" in captured.err
 
 
 def test_invalid_argument_shape_exits_with_argparse_status() -> None:
@@ -76,6 +175,63 @@ def test_invalid_argument_shape_exits_with_argparse_status() -> None:
         main(["summary"])
 
     assert exception.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["filter", str(SAMPLES / "valid-clf.log")],
+        ["filter", str(SAMPLES / "valid-clf.log"), "--status", "99"],
+        ["top-paths", str(SAMPLES / "valid-clf.log"), "--limit", "0"],
+    ],
+)
+def test_baseline_argument_validation_exits_with_two(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exception:
+        main(argv)
+
+    assert exception.value.code == 2
+
+
+def test_record_output_escapes_control_characters(monkeypatch, capsys) -> None:
+    record = AccessLogRecord(
+        client_ip="192.0.2.1",
+        timestamp=datetime(2025, 10, 1, tzinfo=UTC),
+        method="GET",
+        request_target="/line\nbreak\x1b",
+        protocol="HTTP/1.1",
+        status=200,
+        response_size=0,
+    )
+    monkeypatch.setattr("loglens.cli.iter_log_records", lambda path, stats: iter((record,)))
+
+    assert main(["filter", "sample.log", "--method", "GET"]) == 0
+
+    output = capsys.readouterr().out
+    assert output.count("\n") == 1
+    assert r"/line\nbreak\u001b" in output
+
+
+def test_mid_read_failure_reports_incomplete_streamed_output(monkeypatch, capsys) -> None:
+    record = AccessLogRecord(
+        client_ip="192.0.2.1",
+        timestamp=datetime(2025, 10, 1, tzinfo=UTC),
+        method="GET",
+        request_target="/first",
+        protocol="HTTP/1.1",
+        status=200,
+        response_size=1,
+    )
+
+    def incomplete_records(path: str, stats):
+        yield record
+        raise LogInputError("simulated read failure", incomplete=True)
+
+    monkeypatch.setattr("loglens.cli.iter_log_records", incomplete_records)
+
+    assert main(["filter", "sample.log", "--method", "GET"]) == 1
+    captured = capsys.readouterr()
+    assert 'GET "/first"' in captured.out
+    assert "Output above may be incomplete" in captured.err
 
 
 def test_console_entry_point_is_registered() -> None:

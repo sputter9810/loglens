@@ -59,7 +59,18 @@ loglens top-paths FILE [--limit N]
 loglens top-ips FILE [--limit N]
 ```
 
-`--limit` defaults to 10, and method arguments are normalized to uppercase. The root and all subcommands provide argparse help. At this stage these commands define the interface only: each recognized operation reports that it is unavailable on standard error and exits with status 1. They do not read the supplied file or claim to produce analysis. The reusable summary, filtering, and ranking APIs are available to Python callers; CLI integration and filter/business validation are planned for later issues.
+`--limit` defaults to 10, method arguments are normalized to uppercase, and a filter requires at least one selector. When both filter selectors are supplied, records must match both. The root and all subcommands provide argparse help. For example:
+
+```powershell
+loglens summary samples/valid-clf.log
+loglens filter samples/mixed-input.log --status 404 --method post
+loglens top-paths samples/valid-clf.log --limit 3
+loglens top-ips samples/valid-clf.log
+```
+
+Summary output includes total requests, exact status counts, and every status category. Filter output preserves input order and JSON-quotes request targets so control characters cannot alter terminal layout. Rankings show count and escaped key, ordered by descending count then ascending key.
+
+Files are read incrementally as UTF-8. Blank lines are ignored and counted; malformed records are skipped and counted. If malformed records are skipped, one concise diagnostic on standard error reports valid-record, malformed-record, and blank-line totals, including zeros. Successful input without malformed records emits no diagnostic, even when it contains only blank lines. Empty and blank-only files succeed with zero/no-match output. Nonblank all-invalid files fail with status 1. File/read/decoding failures also return status 1; a mid-read failure explicitly warns that preceding streamed output may be incomplete. Invalid argument shapes return status 2. Analysis functions remain independent of file input and presentation.
 
 ## Sample data
 
