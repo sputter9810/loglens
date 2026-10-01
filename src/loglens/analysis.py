@@ -1,7 +1,7 @@
 """Reusable analysis operations over parsed access-log records."""
 
 from collections import Counter
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 
 from loglens.models import AccessLogRecord
@@ -63,3 +63,40 @@ def filter_by_method(
     for record in records:
         if record.method == method:
             yield record
+
+
+def _rank_values(
+    records: Iterable[AccessLogRecord],
+    value_for: Callable[[AccessLogRecord], str],
+    limit: int,
+) -> list[tuple[str, int]]:
+    if limit <= 0:
+        raise ValueError("limit must be a positive integer")
+
+    counts: Counter[str] = Counter()
+    for record in records:
+        counts[value_for(record)] += 1
+
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+
+
+def rank_request_targets(
+    records: Iterable[AccessLogRecord], limit: int = 10
+) -> list[tuple[str, int]]:
+    """Rank complete request targets by count, then target ascending.
+
+    ``limit`` must be a positive integer. Storage grows with distinct targets,
+    not with the number of input records.
+    """
+    return _rank_values(records, lambda record: record.request_target, limit)
+
+
+def rank_client_ips(
+    records: Iterable[AccessLogRecord], limit: int = 10
+) -> list[tuple[str, int]]:
+    """Rank canonical client IP strings by count, then address ascending.
+
+    Records must contain canonical IP strings and ``limit`` must be a positive
+    integer. Storage grows with distinct addresses, not input record count.
+    """
+    return _rank_values(records, lambda record: record.client_ip, limit)

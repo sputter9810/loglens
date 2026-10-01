@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -7,8 +8,13 @@ from loglens import (
     RequestSummary,
     filter_by_method,
     filter_by_status,
+    parse_access_log_line,
+    rank_client_ips,
+    rank_request_targets,
     summarize_requests,
 )
+
+SAMPLE_PATH = Path(__file__).parents[1] / "samples" / "valid-clf.log"
 
 
 def make_record(status: int, method: str = "GET") -> AccessLogRecord:
@@ -20,6 +26,13 @@ def make_record(status: int, method: str = "GET") -> AccessLogRecord:
         protocol="HTTP/1.1",
         status=status,
         response_size=1,
+    )
+
+
+def sample_records():
+    return (
+        parse_access_log_line(line)
+        for line in SAMPLE_PATH.read_text(encoding="utf-8").splitlines()
     )
 
 
@@ -155,3 +168,51 @@ def test_filter_by_method_consumes_one_shot_iterable_incrementally() -> None:
     assert list(matches) == [source_records[3]]
     assert records.iterations == 1
     assert records.consumed == 4
+
+
+def test_request_target_ranking_matches_sample_counts_and_ties() -> None:
+    assert rank_request_targets(sample_records(), limit=20) == [
+        ("/alpha?x=1", 2),
+        ("/beta", 2),
+        ("/delta", 1),
+        ("/epsilon", 1),
+        ("/gamma", 1),
+        ("/zeta", 1),
+    ]
+
+
+def test_client_ip_ranking_matches_sample_counts_and_ties() -> None:
+    assert rank_client_ips(sample_records()) == [
+        ("192.0.2.10", 2),
+        ("198.51.100.20", 2),
+        ("2001:db8::1", 2),
+        ("203.0.113.9", 2),
+    ]
+
+
+def test_rankers_apply_top_n_limits_and_return_empty_results() -> None:
+    assert rank_request_targets(sample_records(), limit=3) == [
+        ("/alpha?x=1", 2),
+        ("/beta", 2),
+        ("/delta", 1),
+    ]
+    assert rank_client_ips(iter(())) == []
+    assert rank_request_targets(iter(())) == []
+
+
+@pytest.mark.parametrize("ranker", [rank_request_targets, rank_client_ips])
+@pytest.mark.parametrize("limit", [0, -1])
+def test_rankers_require_positive_limits(ranker, limit: int) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        ranker(iter(()), limit=limit)
+
+
+@pytest.mark.parametrize("ranker", [rank_request_targets, rank_client_ips])
+def test_rankers_consume_one_shot_iterables_once(ranker) -> None:
+    records = OneShotRecords([make_record(200), make_record(404), make_record(200)])
+
+    result = ranker(records)
+
+    assert result
+    assert records.iterations == 1
+    assert records.consumed == 3

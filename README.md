@@ -2,7 +2,7 @@
 
 LogLens is a Python command-line application for analysing local HTTP server access logs. It is intended to make large text logs easier to inspect through structured parsing, filtering and summaries.
 
-This repository contains the installable package foundation, shared access-log record contract, CLF line parser, reusable request-summary analysis, library-level status and method filters, and command-line argument interface. Ranking and CLI data integration are not implemented yet.
+This repository contains the installable package foundation, shared access-log record contract, CLF line parser, reusable request-summary analysis, library-level status and method filters, request-target and IP ranking, and command-line argument interface. CLI data integration is not implemented yet.
 
 ## Record contract
 
@@ -46,6 +46,8 @@ client-ip ident authuser [DD/Mon/YYYY:HH:MM:SS +HHMM] "METHOD /origin-target HTT
 
 `filter_by_method(records, method)` lazily yields only records whose normalized method exactly matches `method`, preserving input order and consuming the iterable once. Its preconditions are an uppercase HTTP token and valid parsed records whose methods are already normalized to uppercase. Callers are responsible for validation and normalization. There is no method whitelist, file access, or terminal output.
 
+`rank_request_targets(records, limit=10)` and `rank_client_ips(records, limit=10)` return `(value, count)` pairs sorted by count descending and value ascending for ties. Targets include their preserved query strings; IPs must already be canonical. `limit` must be a positive integer. Each function consumes its iterable once and retains counts only for distinct keys; neither reads files nor formats or prints results.
+
 ## Command-line interface
 
 Editable installation registers the `loglens` command. Its approved command forms are:
@@ -57,7 +59,7 @@ loglens top-paths FILE [--limit N]
 loglens top-ips FILE [--limit N]
 ```
 
-`--limit` defaults to 10, and method arguments are normalized to uppercase. The root and all subcommands provide argparse help. At this stage these commands define the interface only: each recognized operation reports that it is unavailable on standard error and exits with status 1. They do not read the supplied file or claim to produce analysis. The reusable summary and filtering APIs are available to Python callers; CLI integration, filter/business validation, and ranking behavior are planned for later issues.
+`--limit` defaults to 10, and method arguments are normalized to uppercase. The root and all subcommands provide argparse help. At this stage these commands define the interface only: each recognized operation reports that it is unavailable on standard error and exits with status 1. They do not read the supplied file or claim to produce analysis. The reusable summary, filtering, and ranking APIs are available to Python callers; CLI integration and filter/business validation are planned for later issues.
 
 ## Sample data
 
