@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -19,6 +20,13 @@ def command_args(command: str, path: Path) -> list[str]:
     if command == "filter":
         args.extend(["--method", "GET"])
     return args
+
+
+def ranked_values(output: str) -> list[tuple[str, int]]:
+    return [
+        (json.loads(value), int(count))
+        for count, value in (line.split(maxsplit=1) for line in output.splitlines())
+    ]
 
 
 @pytest.mark.parametrize(
@@ -75,9 +83,20 @@ def test_summary_command_reports_sample_totals(capsys) -> None:
 
     captured = capsys.readouterr()
     assert "Total requests: 8" in captured.out
-    assert "  404: 2" in captured.out
-    assert "  1xx: 1" in captured.out
-    assert "  5xx: 1" in captured.out
+    for expected in (
+        "100: 1",
+        "200: 2",
+        "201: 1",
+        "302: 1",
+        "404: 2",
+        "503: 1",
+        "1xx: 1",
+        "2xx: 3",
+        "3xx: 1",
+        "4xx: 2",
+        "5xx: 1",
+    ):
+        assert expected in captured.out
     assert captured.err == ""
 
 
@@ -87,15 +106,16 @@ def test_filter_combines_status_and_method_with_and(capsys) -> None:
             "filter",
             str(SAMPLES / "mixed-input.log"),
             "--status",
-            "404",
+            "200",
             "--method",
-            "post",
+            "get",
         ]
     ) == 0
 
     captured = capsys.readouterr()
-    assert 'POST "/shared?mode=test" HTTP/1.1 404 -' in captured.out
-    assert "/tea" not in captured.out
+    assert len(captured.out.splitlines()) == 1
+    assert captured.out.startswith("192.0.2.50 ")
+    assert 'GET "/shared?mode=test" HTTP/1.1 200 0 bytes' in captured.out
     assert captured.err == (
         "Input: 4 valid records; 4 malformed records skipped; 2 blank lines ignored.\n"
     )
@@ -145,30 +165,30 @@ def test_ranking_commands_report_sample_ties(capsys) -> None:
     sample = str(SAMPLES / "valid-clf.log")
     assert main(["top-paths", sample]) == 0
     paths = capsys.readouterr()
-    assert paths.out.splitlines() == [
-        '2\t"/alpha?x=1"',
-        '2\t"/beta"',
-        '1\t"/delta"',
-        '1\t"/epsilon"',
-        '1\t"/gamma"',
-        '1\t"/zeta"',
+    assert ranked_values(paths.out) == [
+        ("/alpha?x=1", 2),
+        ("/beta", 2),
+        ("/delta", 1),
+        ("/epsilon", 1),
+        ("/gamma", 1),
+        ("/zeta", 1),
     ]
 
     assert main(["top-paths", sample, "--limit", "3"]) == 0
     limited_paths = capsys.readouterr()
-    assert limited_paths.out.splitlines() == [
-        '2\t"/alpha?x=1"',
-        '2\t"/beta"',
-        '1\t"/delta"',
+    assert ranked_values(limited_paths.out) == [
+        ("/alpha?x=1", 2),
+        ("/beta", 2),
+        ("/delta", 1),
     ]
 
     assert main(["top-ips", sample]) == 0
     ips = capsys.readouterr()
-    assert ips.out.splitlines() == [
-        '2\t"192.0.2.10"',
-        '2\t"198.51.100.20"',
-        '2\t"2001:db8::1"',
-        '2\t"203.0.113.9"',
+    assert ranked_values(ips.out) == [
+        ("192.0.2.10", 2),
+        ("198.51.100.20", 2),
+        ("2001:db8::1", 2),
+        ("203.0.113.9", 2),
     ]
 
 
