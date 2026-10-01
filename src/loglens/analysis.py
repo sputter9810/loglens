@@ -49,3 +49,17 @@ def filter_by_status(
     for record in records:
         if record.status == status:
             yield record
+
+
+def filter_by_method(
+    records: Iterable[AccessLogRecord], method: str
+) -> Iterator[AccessLogRecord]:
+    """Yield records with an exact uppercase method, preserving source order.
+
+    Preconditions: ``method`` is an uppercase HTTP token, and records contains
+    valid parsed access-log records with normalized methods. Validation and
+    normalization belong to the caller.
+    """
+    for record in records:
+        if record.method == method:
+            yield record

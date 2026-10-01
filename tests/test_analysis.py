@@ -5,16 +5,17 @@ import pytest
 from loglens import (
     AccessLogRecord,
     RequestSummary,
+    filter_by_method,
     filter_by_status,
     summarize_requests,
 )
 
 
-def make_record(status: int) -> AccessLogRecord:
+def make_record(status: int, method: str = "GET") -> AccessLogRecord:
     return AccessLogRecord(
         client_ip="192.0.2.1",
         timestamp=datetime(2025, 10, 1, tzinfo=UTC),
-        method="GET",
+        method=method,
         request_target="/resource",
         protocol="HTTP/1.1",
         status=status,
@@ -102,6 +103,49 @@ def test_filter_by_status_consumes_one_shot_iterable_incrementally() -> None:
     ]
     records = OneShotRecords(source_records)
     matches = filter_by_status(records, 200)
+
+    assert records.iterations == 0
+    assert records.consumed == 0
+    assert next(matches) == source_records[1]
+    assert records.iterations == 1
+    assert records.consumed == 2
+    assert list(matches) == [source_records[3]]
+    assert records.iterations == 1
+    assert records.consumed == 4
+
+
+def test_filter_by_method_matches_common_methods_in_input_order() -> None:
+    records = [
+        make_record(200, method)
+        for method in ("GET", "POST", "HEAD", "GET", "DELETE")
+    ]
+
+    assert list(filter_by_method(records, "GET")) == [records[0], records[3]]
+    assert list(filter_by_method(records, "POST")) == [records[1]]
+    assert list(filter_by_method(records, "HEAD")) == [records[2]]
+
+
+def test_filter_by_method_supports_extensions_without_a_whitelist() -> None:
+    records = [make_record(200, "BREW"), make_record(200, "M-SEARCH")]
+
+    assert list(filter_by_method(records, "BREW")) == [records[0]]
+    assert list(filter_by_method(records, "M-SEARCH")) == [records[1]]
+    assert list(filter_by_method(records, "PROPFIND")) == []
+
+
+def test_filter_by_method_returns_empty_for_empty_input() -> None:
+    assert list(filter_by_method(iter(()), "GET")) == []
+
+
+def test_filter_by_method_consumes_one_shot_iterable_incrementally() -> None:
+    source_records = [
+        make_record(200, "POST"),
+        make_record(200, "GET"),
+        make_record(200, "HEAD"),
+        make_record(200, "GET"),
+    ]
+    records = OneShotRecords(source_records)
+    matches = filter_by_method(records, "GET")
 
     assert records.iterations == 0
     assert records.consumed == 0
