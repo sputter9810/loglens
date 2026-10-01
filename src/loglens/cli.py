@@ -59,7 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     _add_file_argument(filter_command)
-    filter_command.add_argument("--status", type=int, metavar="CODE", help="Select a response status.")
+    filter_command.add_argument(
+        "--status", type=int, metavar="CODE", help="Select a response status."
+    )
     filter_command.add_argument(
         "--method",
         type=_normalize_method,
@@ -148,7 +150,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("filter requires at least one of --status or --method")
     if args.command in {"top-paths", "top-ips"} and args.limit <= 0:
         parser.error("--limit must be a positive integer")
-    if args.command == "filter" and args.status is not None and not 100 <= args.status <= 599:
+    if (
+        args.command == "filter"
+        and args.status is not None
+        and not 100 <= args.status <= 599
+    ):
         parser.error("--status must be between 100 and 599")
 
     stats = InputStats()

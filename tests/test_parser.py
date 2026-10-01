@@ -95,7 +95,9 @@ def test_preserves_non_utc_offset_and_canonicalizes_ipv6() -> None:
 
 @pytest.mark.parametrize("ending", ["\n", "\r\n"])
 def test_accepts_one_line_ending(ending: str) -> None:
-    assert parse_access_log_line(SAMPLE_LINES[0] + ending).request_target == "/alpha?x=1"
+    assert (
+        parse_access_log_line(SAMPLE_LINES[0] + ending).request_target == "/alpha?x=1"
+    )
 
 
 @pytest.mark.parametrize("control", ["\x00", "\x1b", "\x7f"])
@@ -111,8 +113,7 @@ def test_rejects_control_characters_in_request_target(control: str) -> None:
 
 def test_rejects_control_character_in_ignored_clf_field() -> None:
     line = (
-        '192.0.2.1 - user\x1bname [01/Oct/2025:12:00:00 +0000] '
-        '"GET / HTTP/1.1" 200 1'
+        '192.0.2.1 - user\x1bname [01/Oct/2025:12:00:00 +0000] "GET / HTTP/1.1" 200 1'
     )
 
     with pytest.raises(AccessLogParseError):
@@ -179,8 +180,7 @@ def test_rejects_request_lines_missing_target_or_protocol(request_line: str) -> 
 
 def test_rejects_embedded_quote_in_request_target() -> None:
     line = (
-        '192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] '
-        '"GET /before"after HTTP/1.1" 200 1'
+        '192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] "GET /before"after HTTP/1.1" 200 1'
     )
 
     with pytest.raises(AccessLogParseError):
@@ -188,10 +188,7 @@ def test_rejects_embedded_quote_in_request_target() -> None:
 
 
 def test_accepts_february_29_in_leap_year() -> None:
-    line = (
-        '192.0.2.1 - - [29/Feb/2024:12:00:00 +0000] '
-        '"GET /leap-day HTTP/1.1" 200 1'
-    )
+    line = '192.0.2.1 - - [29/Feb/2024:12:00:00 +0000] "GET /leap-day HTTP/1.1" 200 1'
 
     record = parse_access_log_line(line)
 

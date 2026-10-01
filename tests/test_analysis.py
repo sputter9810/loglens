@@ -145,8 +145,7 @@ def test_filter_by_status_consumes_one_shot_iterable_incrementally() -> None:
 
 def test_filter_by_method_matches_common_methods_in_input_order() -> None:
     records = [
-        make_record(200, method)
-        for method in ("GET", "POST", "HEAD", "GET", "DELETE")
+        make_record(200, method) for method in ("GET", "POST", "HEAD", "GET", "DELETE")
     ]
 
     assert list(filter_by_method(records, "GET")) == [records[0], records[3]]

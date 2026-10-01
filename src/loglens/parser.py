@@ -68,7 +68,9 @@ def _parse_timestamp(value: str) -> datetime:
             tzinfo=timezone(offset),
         )
     except ValueError as error:
-        raise AccessLogParseError("timestamp is not a valid calendar date and time") from error
+        raise AccessLogParseError(
+            "timestamp is not a valid calendar date and time"
+        ) from error
 
 
 def parse_access_log_line(line: str) -> AccessLogRecord:
@@ -90,12 +92,16 @@ def parse_access_log_line(line: str) -> AccessLogRecord:
 
     request = _REQUEST_PATTERN.fullmatch(fields.group("request"))
     if request is None or not request.group("request_target").startswith("/"):
-        raise AccessLogParseError("request line is not a supported origin-form HTTP request")
+        raise AccessLogParseError(
+            "request line is not a supported origin-form HTTP request"
+        )
 
     try:
         client_ip = ipaddress.ip_address(fields.group("client_ip")).compressed
     except ValueError as error:
-        raise AccessLogParseError("client address must be a valid IPv4 or IPv6 address") from error
+        raise AccessLogParseError(
+            "client address must be a valid IPv4 or IPv6 address"
+        ) from error
 
     timestamp = _parse_timestamp(fields.group("timestamp"))
     status = int(fields.group("status"))
@@ -106,7 +112,9 @@ def parse_access_log_line(line: str) -> AccessLogRecord:
     try:
         response_size = None if size_text == "-" else int(size_text)
     except ValueError as error:
-        raise AccessLogParseError("response size must be a nonnegative integer or '-'") from error
+        raise AccessLogParseError(
+            "response size must be a nonnegative integer or '-'"
+        ) from error
 
     return AccessLogRecord(
         client_ip=client_ip,

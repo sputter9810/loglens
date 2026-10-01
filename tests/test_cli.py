@@ -101,16 +101,19 @@ def test_summary_command_reports_sample_totals(capsys) -> None:
 
 
 def test_filter_combines_status_and_method_with_and(capsys) -> None:
-    assert main(
-        [
-            "filter",
-            str(SAMPLES / "mixed-input.log"),
-            "--status",
-            "200",
-            "--method",
-            "get",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "filter",
+                str(SAMPLES / "mixed-input.log"),
+                "--status",
+                "200",
+                "--method",
+                "get",
+            ]
+        )
+        == 0
+    )
 
     captured = capsys.readouterr()
     assert len(captured.out.splitlines()) == 1
@@ -127,9 +130,7 @@ def test_filter_preserves_order_and_reports_zero_matches(capsys) -> None:
     assert captured.out.index('GET "/alpha?x=1"') < captured.out.index('GET "/gamma"')
     assert captured.out.index('GET "/gamma"') < captured.out.index('GET "/epsilon"')
 
-    assert main(
-        ["filter", str(SAMPLES / "valid-clf.log"), "--status", "599"]
-    ) == 0
+    assert main(["filter", str(SAMPLES / "valid-clf.log"), "--status", "599"]) == 0
     assert capsys.readouterr().out == "No records matched.\n"
 
 
@@ -138,14 +139,19 @@ def test_empty_file_returns_zero_summary_and_empty_filter_result(capsys) -> None
     assert main(["summary", empty]) == 0
     summary = capsys.readouterr()
     assert "Total requests: 0" in summary.out
-    assert all(f"{category}: 0" in summary.out for category in ("1xx", "2xx", "3xx", "4xx", "5xx"))
+    assert all(
+        f"{category}: 0" in summary.out
+        for category in ("1xx", "2xx", "3xx", "4xx", "5xx")
+    )
 
     assert main(["filter", empty, "--method", "GET"]) == 0
     assert capsys.readouterr().out == "No records matched.\n"
 
 
 @pytest.mark.parametrize("command", ["summary", "filter", "top-paths", "top-ips"])
-def test_blank_only_file_has_no_diagnostic(command: str, tmp_path: Path, capsys) -> None:
+def test_blank_only_file_has_no_diagnostic(
+    command: str, tmp_path: Path, capsys
+) -> None:
     blank_only = tmp_path / "blank-only.log"
     blank_only.write_text("\n  \n\t\n", encoding="utf-8")
 
@@ -193,7 +199,9 @@ def test_ranking_commands_report_sample_ties(capsys) -> None:
 
 
 @pytest.mark.parametrize("command", ["summary", "filter", "top-paths", "top-ips"])
-def test_mixed_input_totals_are_consistent_across_commands(command: str, capsys) -> None:
+def test_mixed_input_totals_are_consistent_across_commands(
+    command: str, capsys
+) -> None:
     assert main(command_args(command, SAMPLES / "mixed-input.log")) == 0
     captured = capsys.readouterr()
 
@@ -214,7 +222,10 @@ def test_all_invalid_input_fails_consistently_without_record_dumps(
     captured = capsys.readouterr()
 
     assert captured.out == ""
-    assert "Input: 0 valid records; 5 malformed records skipped; 0 blank lines ignored." in captured.err
+    assert (
+        "Input: 0 valid records; 5 malformed records skipped; 0 blank lines ignored."
+        in captured.err
+    )
     assert "no valid access-log records" in captured.err
     assert "not-an-ip" not in captured.err
     assert len(captured.err.splitlines()) == 2
@@ -239,7 +250,9 @@ def test_invalid_argument_shape_exits_with_argparse_status() -> None:
         ["top-ips", str(SAMPLES / "valid-clf.log"), "--limit", "-1"],
     ],
 )
-def test_invalid_arguments_exit_two_with_argparse_errors(argv: list[str], capsys) -> None:
+def test_invalid_arguments_exit_two_with_argparse_errors(
+    argv: list[str], capsys
+) -> None:
     with pytest.raises(SystemExit) as exception:
         main(argv)
 
@@ -289,7 +302,9 @@ def test_permission_error_exits_one_without_platform_permission_bits(
     assert "Traceback" not in captured.err
 
 
-def test_utf8_decode_failure_exits_one_without_traceback(tmp_path: Path, capsys) -> None:
+def test_utf8_decode_failure_exits_one_without_traceback(
+    tmp_path: Path, capsys
+) -> None:
     invalid_utf8 = tmp_path / "invalid-utf8.log"
     invalid_utf8.write_bytes(b"\xff")
 
@@ -309,7 +324,9 @@ def test_record_output_escapes_control_characters(monkeypatch, capsys) -> None:
         status=200,
         response_size=0,
     )
-    monkeypatch.setattr("loglens.cli.iter_log_records", lambda path, stats: iter((record,)))
+    monkeypatch.setattr(
+        "loglens.cli.iter_log_records", lambda path, stats: iter((record,))
+    )
 
     assert main(["filter", "sample.log", "--method", "GET"]) == 0
 
@@ -318,7 +335,9 @@ def test_record_output_escapes_control_characters(monkeypatch, capsys) -> None:
     assert r"/line\nbreak\u001b" in output
 
 
-def test_mid_read_failure_reports_incomplete_streamed_output(monkeypatch, capsys) -> None:
+def test_mid_read_failure_reports_incomplete_streamed_output(
+    monkeypatch, capsys
+) -> None:
     record = AccessLogRecord(
         client_ip="192.0.2.1",
         timestamp=datetime(2025, 10, 1, tzinfo=UTC),

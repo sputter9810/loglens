@@ -47,9 +47,7 @@ def _summarize(path: Path) -> int:
 
 def _filter_200(path: Path) -> int:
     stats = InputStats()
-    return sum(
-        1 for _ in filter_by_status(iter_log_records(path, stats), 200)
-    )
+    return sum(1 for _ in filter_by_status(iter_log_records(path, stats), 200))
 
 
 def _rank_targets(path: Path) -> list[tuple[str, int]]:

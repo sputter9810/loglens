@@ -96,7 +96,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
-The commands use the virtual environment's interpreter directly, so activating it is not required. The editable install makes changes under `src/` importable without reinstalling the package. The project uses setuptools as its standard, lightweight PEP 517 build backend. Pytest provides the initial package smoke test; Ruff supplies a focused Python linter for development checks. These tools are development-only and there are no runtime dependencies.
+The commands use the virtual environment's interpreter directly, so activating it is not required. The editable install makes changes under `src/` importable without reinstalling the package. The project uses setuptools as its standard, lightweight PEP 517 build backend. Pytest provides automated behavior checks; Ruff's default lint selection (`E4`, `E7`, `E9`, `F`) checks common Python errors, while Ruff format enforces the configured 88-character layout and preserves existing quote choices. Both tools are development-only; there are no runtime dependencies.
 
 ## Checks
 
@@ -112,7 +112,15 @@ Run the linter with:
 .\.venv\Scripts\python.exe -m ruff check .
 ```
 
+Check formatting with:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff format --check .
+```
+
 The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. CLI integration tests run complete commands against tracked sample files and cross-check summary totals, a combined filter, and both rankings against `samples/README.md`; they also smoke-test the installed console launcher locally. The suite does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
+
+GitHub Actions runs the same lint, format, and pytest commands on pushes and pull requests with Python 3.12. Its token has only `contents: read` permission; no project secrets are required.
 
 ## Scaling review
 
