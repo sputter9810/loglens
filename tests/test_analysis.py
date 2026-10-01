@@ -1,6 +1,13 @@
 from datetime import UTC, datetime
 
-from loglens import AccessLogRecord, RequestSummary, summarize_requests
+import pytest
+
+from loglens import (
+    AccessLogRecord,
+    RequestSummary,
+    filter_by_status,
+    summarize_requests,
+)
 
 
 def make_record(status: int) -> AccessLogRecord:
@@ -19,12 +26,15 @@ class OneShotRecords:
     def __init__(self, records: list[AccessLogRecord]) -> None:
         self.records = records
         self.iterations = 0
+        self.consumed = 0
 
     def __iter__(self):
         self.iterations += 1
         if self.iterations > 1:
             raise AssertionError("records must be traversed once")
-        yield from self.records
+        for record in self.records:
+            self.consumed += 1
+            yield record
 
 
 def test_empty_records_have_zero_totals_and_categories() -> None:
@@ -61,3 +71,43 @@ def test_one_shot_iterable_is_traversed_once() -> None:
     assert summary.total_requests == 2
     assert summary.status_counts == {201: 1, 500: 1}
     assert records.iterations == 1
+
+
+def test_filter_by_status_returns_exact_matches_in_input_order() -> None:
+    records = [make_record(status) for status in (200, 404, 200, 302, 404)]
+
+    assert list(filter_by_status(records, 404)) == [records[1], records[4]]
+
+
+@pytest.mark.parametrize("status", [100, 599])
+def test_filter_by_status_accepts_valid_boundary_codes(status: int) -> None:
+    records = [make_record(code) for code in (100, 101, 598, 599)]
+
+    assert list(filter_by_status(records, status)) == [
+        record for record in records if record.status == status
+    ]
+
+
+def test_filter_by_status_returns_empty_for_no_matches_or_empty_input() -> None:
+    assert list(filter_by_status([make_record(200)], 404)) == []
+    assert list(filter_by_status(iter(()), 200)) == []
+
+
+def test_filter_by_status_consumes_one_shot_iterable_incrementally() -> None:
+    source_records = [
+        make_record(404),
+        make_record(200),
+        make_record(302),
+        make_record(200),
+    ]
+    records = OneShotRecords(source_records)
+    matches = filter_by_status(records, 200)
+
+    assert records.iterations == 0
+    assert records.consumed == 0
+    assert next(matches) == source_records[1]
+    assert records.iterations == 1
+    assert records.consumed == 2
+    assert list(matches) == [source_records[3]]
+    assert records.iterations == 1
+    assert records.consumed == 4

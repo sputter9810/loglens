@@ -42,6 +42,8 @@ client-ip ident authuser [DD/Mon/YYYY:HH:MM:SS +HHMM] "METHOD /origin-target HTT
 
 `summarize_requests(records)` accepts an iterable of parsed `AccessLogRecord` values and returns a `RequestSummary` with `total_requests`, exact `status_counts`, and `category_counts` for every category from `1xx` through `5xx`, including zero counts. It consumes the iterable once and performs no file access, printing, or malformed-input diagnostics; input handling is the caller's responsibility.
 
+`filter_by_status(records, status)` lazily yields only records whose status exactly matches `status`, preserving input order and consuming the iterable once. Its preconditions are that `status` is an integer from 100 through 599 and each item is a valid parsed `AccessLogRecord`; callers are responsible for satisfying these preconditions. It does not read files, print, or add status categories or ranges.
+
 ## Command-line interface
 
 Editable installation registers the `loglens` command. Its approved command forms are:

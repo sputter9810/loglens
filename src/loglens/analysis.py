@@ -1,7 +1,7 @@
 """Reusable analysis operations over parsed access-log records."""
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from loglens.models import AccessLogRecord
@@ -36,3 +36,16 @@ def summarize_requests(records: Iterable[AccessLogRecord]) -> RequestSummary:
         status_counts=dict(status_counts),
         category_counts=category_counts,
     )
+
+
+def filter_by_status(
+    records: Iterable[AccessLogRecord], status: int
+) -> Iterator[AccessLogRecord]:
+    """Yield records with an exact status, preserving source order.
+
+    Preconditions: ``status`` is an integer from 100 through 599, and records
+    contains valid parsed access-log records. Validation belongs to the caller.
+    """
+    for record in records:
+        if record.status == status:
+            yield record
