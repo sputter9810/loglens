@@ -164,3 +164,46 @@ def test_non_string_input_is_a_programming_error() -> None:
 def test_rejects_near_matching_non_clf_formats(line: str) -> None:
     with pytest.raises(AccessLogParseError):
         parse_access_log_line(line)
+
+
+@pytest.mark.parametrize(
+    "request_line",
+    ["GET HTTP/1.1", "GET /resource", "GET"],
+)
+def test_rejects_request_lines_missing_target_or_protocol(request_line: str) -> None:
+    line = f'192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] "{request_line}" 200 1'
+
+    with pytest.raises(AccessLogParseError):
+        parse_access_log_line(line)
+
+
+def test_rejects_embedded_quote_in_request_target() -> None:
+    line = (
+        '192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] '
+        '"GET /before"after HTTP/1.1" 200 1'
+    )
+
+    with pytest.raises(AccessLogParseError):
+        parse_access_log_line(line)
+
+
+def test_accepts_february_29_in_leap_year() -> None:
+    line = (
+        '192.0.2.1 - - [29/Feb/2024:12:00:00 +0000] '
+        '"GET /leap-day HTTP/1.1" 200 1'
+    )
+
+    record = parse_access_log_line(line)
+
+    assert record.timestamp == datetime(2024, 2, 29, 12, tzinfo=UTC)
+    assert record.request_target == "/leap-day"
+
+
+def test_rejects_february_29_in_non_leap_year() -> None:
+    line = (
+        '192.0.2.1 - - [29/Feb/2025:12:00:00 +0000] '
+        '"GET /invalid-leap-day HTTP/1.1" 200 1'
+    )
+
+    with pytest.raises(AccessLogParseError, match="valid calendar"):
+        parse_access_log_line(line)

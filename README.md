@@ -112,6 +112,8 @@ Run the linter with:
 .\.venv\Scripts\python.exe -m ruff check .
 ```
 
+The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. It does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
+
 ## Licence
 
 Sam's licence decision is pending. No licence has been selected or granted yet.

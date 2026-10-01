@@ -77,6 +77,22 @@ def test_mixed_statuses_have_exact_counts_and_categories() -> None:
     }
 
 
+def test_two_xx_only_summary_keeps_other_categories_zero() -> None:
+    records = [make_record(200), make_record(201), make_record(204)]
+
+    summary = summarize_requests(records)
+
+    assert summary.total_requests == 3
+    assert summary.status_counts == {200: 1, 201: 1, 204: 1}
+    assert summary.category_counts == {
+        "1xx": 0,
+        "2xx": 3,
+        "3xx": 0,
+        "4xx": 0,
+        "5xx": 0,
+    }
+
+
 def test_one_shot_iterable_is_traversed_once() -> None:
     records = OneShotRecords([make_record(201), make_record(500)])
 
@@ -93,13 +109,13 @@ def test_filter_by_status_returns_exact_matches_in_input_order() -> None:
     assert list(filter_by_status(records, 404)) == [records[1], records[4]]
 
 
-@pytest.mark.parametrize("status", [100, 599])
-def test_filter_by_status_accepts_valid_boundary_codes(status: int) -> None:
+@pytest.mark.parametrize(("status", "expected_index"), [(100, 0), (599, 3)])
+def test_filter_by_status_accepts_valid_boundary_codes(
+    status: int, expected_index: int
+) -> None:
     records = [make_record(code) for code in (100, 101, 598, 599)]
 
-    assert list(filter_by_status(records, status)) == [
-        record for record in records if record.status == status
-    ]
+    assert list(filter_by_status(records, status)) == [records[expected_index]]
 
 
 def test_filter_by_status_returns_empty_for_no_matches_or_empty_input() -> None:
@@ -207,12 +223,18 @@ def test_rankers_require_positive_limits(ranker, limit: int) -> None:
         ranker(iter(()), limit=limit)
 
 
-@pytest.mark.parametrize("ranker", [rank_request_targets, rank_client_ips])
-def test_rankers_consume_one_shot_iterables_once(ranker) -> None:
+@pytest.mark.parametrize(
+    ("ranker", "expected"),
+    [
+        (rank_request_targets, [("/resource", 3)]),
+        (rank_client_ips, [("192.0.2.1", 3)]),
+    ],
+)
+def test_rankers_consume_one_shot_iterables_once(ranker, expected) -> None:
     records = OneShotRecords([make_record(200), make_record(404), make_record(200)])
 
     result = ranker(records)
 
-    assert result
+    assert result == expected
     assert records.iterations == 1
     assert records.consumed == 3
