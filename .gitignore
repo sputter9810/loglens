@@ -32,3 +32,5 @@ Thumbs.db
 *.log
 !samples/*.log
 !samples/**/*.log
+
+review.diff
