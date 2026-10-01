@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 
@@ -21,9 +22,17 @@ from loglens.input import (
 )
 from loglens.models import AccessLogRecord
 
+_HTTP_METHOD_TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+
 
 def _add_file_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("file", metavar="FILE", help="Path to a local access log.")
+
+
+def _normalize_method(value: str) -> str:
+    if not _HTTP_METHOD_TOKEN.fullmatch(value):
+        raise argparse.ArgumentTypeError("METHOD must be a valid HTTP token")
+    return value.upper()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     filter_command.add_argument("--status", type=int, metavar="CODE", help="Select a response status.")
     filter_command.add_argument(
         "--method",
-        type=str.upper,
+        type=_normalize_method,
         metavar="METHOD",
         help="Select an HTTP request method (case-normalized to uppercase).",
     )

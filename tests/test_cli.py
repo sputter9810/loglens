@@ -182,14 +182,71 @@ def test_invalid_argument_shape_exits_with_argparse_status() -> None:
     [
         ["filter", str(SAMPLES / "valid-clf.log")],
         ["filter", str(SAMPLES / "valid-clf.log"), "--status", "99"],
+        ["filter", str(SAMPLES / "valid-clf.log"), "--status", "600"],
+        ["filter", str(SAMPLES / "valid-clf.log"), "--status", "abc"],
+        ["filter", str(SAMPLES / "valid-clf.log"), "--method", "GET/POST"],
         ["top-paths", str(SAMPLES / "valid-clf.log"), "--limit", "0"],
+        ["top-ips", str(SAMPLES / "valid-clf.log"), "--limit", "-1"],
     ],
 )
-def test_baseline_argument_validation_exits_with_two(argv: list[str]) -> None:
+def test_invalid_arguments_exit_two_with_argparse_errors(argv: list[str], capsys) -> None:
     with pytest.raises(SystemExit) as exception:
         main(argv)
 
     assert exception.value.code == 2
+    assert "error:" in capsys.readouterr().err
+
+
+def test_status_range_boundaries_are_accepted(tmp_path: Path, capsys) -> None:
+    sample = tmp_path / "boundaries.log"
+    sample.write_text(
+        '192.0.2.1 - - [01/Oct/2025:12:00:00 +0000] "GET /continue HTTP/1.1" 100 0\n'
+        '192.0.2.2 - - [01/Oct/2025:12:01:00 +0000] "GET /network-error HTTP/1.1" 599 -\n',
+        encoding="utf-8",
+    )
+
+    assert main(["filter", str(sample), "--status", "100"]) == 0
+    assert '"/continue" HTTP/1.1 100' in capsys.readouterr().out
+    assert main(["filter", str(sample), "--status", "599"]) == 0
+    assert '"/network-error" HTTP/1.1 599' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("path_kind", ["missing", "directory"])
+def test_expected_path_errors_exit_one_without_traceback(
+    tmp_path: Path, capsys, path_kind: str
+) -> None:
+    path = tmp_path / "missing.log"
+    if path_kind == "directory":
+        path.mkdir()
+
+    assert main(["summary", str(path)]) == 1
+    captured = capsys.readouterr()
+    assert "Error: cannot open" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_permission_error_exits_one_without_platform_permission_bits(
+    monkeypatch, capsys
+) -> None:
+    def deny_open(self, *args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(Path, "open", deny_open)
+
+    assert main(["summary", str(SAMPLES / "valid-clf.log")]) == 1
+    captured = capsys.readouterr()
+    assert "access denied" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_utf8_decode_failure_exits_one_without_traceback(tmp_path: Path, capsys) -> None:
+    invalid_utf8 = tmp_path / "invalid-utf8.log"
+    invalid_utf8.write_bytes(b"\xff")
+
+    assert main(["summary", str(invalid_utf8)]) == 1
+    captured = capsys.readouterr()
+    assert "failed before completion" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_record_output_escapes_control_characters(monkeypatch, capsys) -> None:
