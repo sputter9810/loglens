@@ -96,7 +96,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
-The commands use the virtual environment's interpreter directly, so activating it is not required. The editable install makes changes under `src/` importable without reinstalling the package. The project uses setuptools as its standard, lightweight PEP 517 build backend. Pytest provides automated behavior checks; Ruff's default lint selection (`E4`, `E7`, `E9`, `F`) checks common Python errors, while Ruff format enforces the configured 88-character layout and preserves existing quote choices. Both tools are development-only; there are no runtime dependencies.
+The commands use the virtual environment's interpreter directly, so activating it is not required. The editable install makes changes under `src/` importable without reinstalling the package. The project uses setuptools as its standard PEP 517 build backend and PyPA `build` as the frontend for producing wheel and source distributions. Pytest provides automated behavior checks; Ruff's default lint selection (`E4`, `E7`, `E9`, `F`) checks common Python errors, while Ruff format enforces the configured 88-character layout and preserves existing quote choices. These tools are development-only; there are no runtime dependencies.
 
 ## Checks
 
@@ -117,6 +117,30 @@ Check formatting with:
 ```powershell
 .\.venv\Scripts\python.exe -m ruff format --check .
 ```
+
+## Build and verify an installed distribution
+
+Build both a wheel and source distribution locally; this does not publish either artifact:
+
+```powershell
+$repo = (Get-Location).Path
+$dist = Join-Path $repo 'dist'
+.\.venv\Scripts\python.exe -m build --sdist --wheel --outdir $dist
+$wheel = Join-Path $dist 'loglens-0.1.0-py3-none-any.whl'
+$venv = Join-Path $env:TEMP ("loglens-wheel-check-" + [guid]::NewGuid().ToString('N'))
+py -3.12 -m venv $venv
+& (Join-Path $venv 'Scripts\python.exe') -m pip install $wheel
+$sample = (Resolve-Path (Join-Path $repo 'samples\valid-clf.log')).Path
+Push-Location $env:TEMP
+& (Join-Path $venv 'Scripts\loglens.exe') --help
+& (Join-Path $venv 'Scripts\loglens.exe') summary $sample
+& (Join-Path $venv 'Scripts\loglens.exe') filter $sample --status 200 --method get
+& (Join-Path $venv 'Scripts\loglens.exe') top-paths $sample --limit 3
+& (Join-Path $venv 'Scripts\loglens.exe') top-ips $sample
+Pop-Location
+```
+
+Run the help command with `summary`, `filter`, `top-paths`, and `top-ips` plus `--help` to inspect each installed command. The sample path is resolved before changing directories, so all operations exercise the installed package from outside the checkout. The wheel contains the `loglens` package and console entry point; sample logs remain repository fixtures and are not installed into the package. The source distribution is built from the same PEP 517 configuration. A `LICENSE` is not included because Sam's license decision is pending; local packaging does not grant a license, and this project does not publish to PyPI.
 
 The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. CLI integration tests run complete commands against tracked sample files and cross-check summary totals, a combined filter, and both rankings against `samples/README.md`; they also smoke-test the installed console launcher locally. The suite does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
 
