@@ -20,6 +20,24 @@ Import the immutable record from the package root with `from loglens import Acce
 
 `AccessLogRecord` is a frozen dataclass. It stores these values without validating or normalizing them; input parsing, canonical IP conversion, and timestamp-awareness checks belong to the parser. The model does not access files, format terminal output, or perform analysis.
 
+## Supported CLF parsing
+
+`parse_access_log_line(line)` parses one record and returns an `AccessLogRecord`. Import it with `from loglens import parse_access_log_line`; malformed or unsupported records raise `AccessLogParseError`, a `ValueError` subclass. A line may end with one LF or CRLF. The function does not read files or print output; passing a non-string is a programming error and raises `TypeError`.
+
+The accepted record shape is:
+
+```text
+client-ip ident authuser [DD/Mon/YYYY:HH:MM:SS +HHMM] "METHOD /origin-target HTTP/major.minor" STATUS SIZE
+```
+
+- `client-ip` must be a valid IPv4 or IPv6 address. The record stores its canonical compressed textual form.
+- `ident` and `authuser` are non-whitespace CLF fields and are not retained.
+- The timestamp uses an English, case-sensitive month abbreviation (`Jan` through `Dec`), a valid calendar date/time, and a signed four-digit numeric UTC offset. Parsing is locale-independent and preserves the offset.
+- `METHOD` must be an uppercase HTTP token. The origin-form request target must begin with `/`; it is preserved in full, including its query string. The protocol must match `HTTP/major.minor` with decimal components.
+- After removing one permitted LF or CRLF line ending, ASCII control characters U+0000–U+001F and U+007F are rejected anywhere in the record, including the ignored ident and authuser fields. Ordinary spaces are permitted between fields.
+- `STATUS` must be a three-digit code from 100 through 599. `SIZE` must be a nonnegative decimal integer or `-`; `-` becomes `None`, while `0` remains zero.
+- Additional trailing fields, including Combined-format referer and user-agent fields, are rejected. Other log formats are not detected or supported.
+
 ## Sample data
 
 Synthetic CLF, mixed-input, all-invalid, and empty fixtures are in [`samples/`](samples/). The mixed sample includes blank lines. Manually calculated line dispositions, status totals, ranking counts, and filter matches are documented in the [sample manifest](samples/README.md).
