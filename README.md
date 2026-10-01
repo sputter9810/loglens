@@ -112,7 +112,7 @@ Run the linter with:
 .\.venv\Scripts\python.exe -m ruff check .
 ```
 
-The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. It does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
+The suite uses fixed sample expectations and one-shot iterables to verify behavior without deriving expected values from the implementation. CLI tests exercise dispatch directly and smoke-test the installed console launcher using only local fixtures. It does not set timing or memory thresholds, which are environment-sensitive, or exhaustively fuzz log formats outside the documented CLF subset.
 
 ## Licence
 

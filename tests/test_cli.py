@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from importlib.metadata import entry_points
 from pathlib import Path
@@ -140,9 +143,20 @@ def test_blank_only_file_has_no_diagnostic(command: str, tmp_path: Path, capsys)
 
 def test_ranking_commands_report_sample_ties(capsys) -> None:
     sample = str(SAMPLES / "valid-clf.log")
-    assert main(["top-paths", sample, "--limit", "3"]) == 0
+    assert main(["top-paths", sample]) == 0
     paths = capsys.readouterr()
     assert paths.out.splitlines() == [
+        '2\t"/alpha?x=1"',
+        '2\t"/beta"',
+        '1\t"/delta"',
+        '1\t"/epsilon"',
+        '1\t"/gamma"',
+        '1\t"/zeta"',
+    ]
+
+    assert main(["top-paths", sample, "--limit", "3"]) == 0
+    limited_paths = capsys.readouterr()
+    assert limited_paths.out.splitlines() == [
         '2\t"/alpha?x=1"',
         '2\t"/beta"',
         '1\t"/delta"',
@@ -315,3 +329,22 @@ def test_console_entry_point_is_registered() -> None:
     )
 
     assert entry_point.value == "loglens.cli:main"
+
+
+def test_installed_console_entry_point_runs_sample_command() -> None:
+    launcher_name = "loglens.exe" if os.name == "nt" else "loglens"
+    launcher = Path(sys.executable).with_name(launcher_name)
+    assert launcher.is_file()
+
+    result = subprocess.run(
+        [str(launcher), "summary", str(SAMPLES / "valid-clf.log")],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0
+    assert "Total requests: 8" in result.stdout
+    assert "404: 2" in result.stdout
+    assert result.stderr == ""
