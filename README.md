@@ -297,9 +297,6 @@ Run on Python 3.12.10 (CPython), Windows 11 10.0.26200, AMD64, AMD64 Family 25 M
 The input iterator, summary and filter remain close to constant traced memory as row count grows. Rankers stay similarly small when every record shares a key, but their counters and sorted distinct-key result grow with cardinality, as designed. Wall times include Python-level parsing and tracing overhead and are not suitable as uninstrumented throughput estimates.
 
 ## Licence
-
-MIT License
-
 Copyright (c) 2026 Samuel Briggs
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
